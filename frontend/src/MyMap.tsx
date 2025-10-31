@@ -13,7 +13,7 @@ const INCIDENTS_URL =
   encodeURIComponent(`
     SELECT *
     FROM incidents_part1_part2
-    WHERE dispatch_date_time > now() - interval '24 hours'
+    WHERE dispatch_date_time > now() - interval '1 week'
     ORDER BY dispatch_date_time DESC
     LIMIT 2000
   `) +
@@ -58,6 +58,14 @@ export default function MyMap() {
         });
       }
 
+      if (!map.getSource("tracts")) {
+        map.addSource("tracts", {
+          type: "geojson",
+          data: "/data/tracts.geojson", // MapLibre can fetch this URL directly
+          generateId: true,
+        });
+      }
+
       // Add a simple circle layer
       if (!map.getLayer("incidents-circles")) {
         map.addLayer({
@@ -84,10 +92,32 @@ export default function MyMap() {
         });
       }
 
-      // Click popup
-      map.on("click", "incidents-circles", (e) => {
+      if (!map.getLayer("tracts")) {
+        map.addLayer({
+          id: "tract-borders",
+          type: "line",
+          source: "tracts",
+          paint: {
+            "line-color": "black",
+            "line-width": 0.9,
+          },
+        });
+      }
+
+      // Hover popup
+      const popup = new maplibregl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+      });
+
+      map.on("mouseenter", "incidents-circles", () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+
+      map.on("mousemove", "incidents-circles", (e) => {
         const f = e.features?.[0];
         if (!f) return;
+
         const [lng, lat] = (f.geometry as any).coordinates;
         const p = f.properties as Record<string, any>;
 
@@ -95,7 +125,6 @@ export default function MyMap() {
         const rawDate = p?.dispatch_date_time ?? null;
         let formattedDate = "Unknown time";
 
-        // Format date/time if available
         if (rawDate) {
           const d = new Date(rawDate);
           formattedDate = d.toLocaleString("en-US", {
@@ -107,10 +136,15 @@ export default function MyMap() {
           });
         }
 
-        new maplibregl.Popup()
+        popup
           .setLngLat([lng, lat])
           .setHTML(`<b>${incident}</b><br><small>${formattedDate}</small>`)
           .addTo(map);
+      });
+
+      map.on("mouseleave", "incidents-circles", () => {
+        map.getCanvas().style.cursor = "";
+        popup.remove();
       });
 
       // Refresh data every 60s
