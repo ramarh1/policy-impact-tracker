@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "maplibre-gl": "^5.10.0",
+    "react-geolocated": "^4.4.0"
+  },
+  "devDependencies": {
+    "@types/maplibre-gl": "^1.14.0"
+  }
+}
