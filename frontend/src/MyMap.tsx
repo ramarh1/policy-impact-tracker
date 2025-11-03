@@ -13,9 +13,9 @@ const INCIDENTS_URL =
   encodeURIComponent(`
     SELECT *
     FROM incidents_part1_part2
-    WHERE dispatch_date_time > now() - interval '1 week'
+    WHERE dispatch_date_time > now() - interval '4 weeks'
     ORDER BY dispatch_date_time DESC
-    LIMIT 2000
+    LIMIT 20000
   `) +
   "&format=GeoJSON";
 
@@ -66,6 +66,70 @@ export default function MyMap() {
         });
       }
 
+      if (!map.getLayer("incidents-heat")) {
+        map.addLayer({
+          id: "incidents-heat",
+          type: "heatmap",
+          source: "incidents",
+          maxzoom: 14,
+          paint: {
+            // Increase the heatmap weight based on frequency and property magnitude
+            "heatmap-weight": 1,
+            // Increase the heatmap color weight weight by zoom level
+            // heatmap-intensity is a multiplier on top of heatmap-weight
+            "heatmap-intensity": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              0,
+              1,
+              14,
+              3,
+            ],
+            "heatmap-radius": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              8,
+              12,
+              12,
+              28,
+              15,
+              42,
+            ],
+            // Color ramp for heatmap.  Domain is 0 (low) to 1 (high).
+            // Begin color ramp at 0-stop with a 0-transparency color
+            // to create a blur-like effect.
+            "heatmap-color": [
+              "interpolate",
+              ["exponential", 1.8],
+              ["heatmap-density"],
+              0,
+              "rgba(33,102,172,0)",
+              0.15,
+              "rgb(103,169,207)",
+              0.35,
+              "rgb(209,229,240)",
+              0.55,
+              "rgb(253,219,199)",
+              0.75,
+              "rgb(239,138,98)",
+              1,
+              "rgb(178,24,43)",
+            ],
+            // Transition from heatmap to circle layer by zoom level
+            "heatmap-opacity": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              12,
+              1,
+              14,
+              0,
+            ],
+          },
+        });
+      }
       // Add a simple circle layer
       if (!map.getLayer("incidents-circles")) {
         map.addLayer({
@@ -86,11 +150,62 @@ export default function MyMap() {
             ],
             "circle-color": "#e74c3c",
             "circle-stroke-color": "#ffffff",
-            "circle-stroke-width": 1,
+            "circle-stroke-width": 2,
             "circle-opacity": 0.7,
           },
         });
       }
+
+      // second source that shares the same data but enables clustering
+      map.addSource("incidents-clustered", {
+        type: "geojson",
+        data: INCIDENTS_URL, // or the same URL you used
+        cluster: true,
+        clusterRadius: 50,
+        clusterMaxZoom: 14,
+      });
+
+      map.addLayer({
+        id: "clusters",
+        type: "circle",
+        source: "incidents-clustered",
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-color": [
+            "step",
+            ["get", "point_count"],
+            "#99d8c9",
+            10,
+            "#41ae76",
+            25,
+            "#006d2c",
+            50,
+          ],
+          "circle-radius": [
+            "step",
+            ["get", "point_count"],
+            14,
+            10,
+            20,
+            25,
+            28,
+            50,
+            36,
+          ],
+          "circle-opacity": 0.85,
+        },
+      });
+      map.addLayer({
+        id: "cluster-count",
+        type: "symbol",
+        source: "incidents-clustered",
+        filter: ["has", "point_count"],
+        layout: {
+          "text-field": ["get", "point_count_abbreviated"],
+          "text-size": 12,
+        },
+        paint: { "text-color": "#fff" },
+      });
 
       if (!map.getLayer("tracts")) {
         map.addLayer({
